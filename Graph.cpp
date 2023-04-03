@@ -130,9 +130,11 @@ HWND initgraph(int width, int height, int cmd)
     HXD_winthread = (HANDLE)_beginthreadex(NULL, 0, &CreateAndDeal, &cad, 0, NULL);
     WaitForSingleObject(created, INFINITE);
     CloseHandle(created);
-    HXD_memDc = CreateCompatibleDC(GetDC(HXD_global));
-    HXD_bitmap = CreateCompatibleBitmap(HXD_memDc, width, height);
+    HDC winDC = GetDC(HXD_global);
+    HXD_memDc = CreateCompatibleDC(winDC);
+    HXD_bitmap = CreateCompatibleBitmap(winDC, width, height);
     SelectObject(HXD_memDc, HXD_bitmap);
+    ReleaseDC(HXD_global, winDC);
     HXD_width = width;
     HXD_height = height;
     return HXD_global;
@@ -152,7 +154,6 @@ void setlinecolor(COLORREF col)
     EnterCriticalSection(&HXD_gcs);// 等待
     // PS_NULL 就不可见
     DeleteObject(SelectObject(HXD_memDc, CreatePen(PS_SOLID, 0, col)));
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -161,7 +162,6 @@ void setfillcolor(COLORREF col)
     EnterCriticalSection(&HXD_gcs);// 等待
     //GetStockObject(NULL_BRUSH) 就不可见
     DeleteObject(SelectObject(HXD_memDc, CreateSolidBrush(col)));
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -171,7 +171,6 @@ void line(int x1, int y1, int x2, int y2)
     MoveToEx(HXD_memDc, x1, y1, NULL);  //画一条直线
     LineTo(HXD_memDc, x2, y2);
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -182,7 +181,6 @@ void rectangle(int x1, int y1, int x2, int y2)
     Rectangle(HXD_memDc, x1, y1, x2, y2);
     DeleteObject(SelectObject(HXD_memDc, old));
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -191,7 +189,6 @@ void fillrectangle(int x1, int y1, int x2, int y2)
     EnterCriticalSection(&HXD_gcs);// 等待
     Rectangle(HXD_memDc, x1, y1, x2, y2);
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -202,7 +199,6 @@ void solidrectangle(int x1, int y1, int x2, int y2)
     Rectangle(HXD_memDc, x1, y1, x2, y2);
     DeleteObject(SelectObject(HXD_memDc, old));
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -213,7 +209,6 @@ void floodfill(int x, int y, COLORREF col, UINT type)
     // FLOODFILLSURFACE 遇 col 就继续
     ExtFloodFill(HXD_memDc, x, y, col, type);
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -224,7 +219,6 @@ void circle(int x, int y, int radius)
     Ellipse(HXD_memDc, x - radius, y - radius, x + radius, y + radius);
     DeleteObject(SelectObject(HXD_memDc, old));
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -233,7 +227,6 @@ void fillcircle(int x, int y, int radius)
     EnterCriticalSection(&HXD_gcs);// 等待
     Ellipse(HXD_memDc, x - radius, y - radius, x + radius, y + radius);
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -244,7 +237,6 @@ void solidcircle(int x, int y, int radius)
     Ellipse(HXD_memDc, x - radius, y - radius, x + radius, y + radius);
     DeleteObject(SelectObject(HXD_memDc, old));
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -291,11 +283,6 @@ BOOL peekmessage(ExMessage* message)
     return result;
 }
 
-void setbkcolor(COLORREF col)
-{
-    SetClassLong(HXD_global, GCLP_HBRBACKGROUND, (LONG)CreateSolidBrush(col));
-}
-
 void closegraph()
 {
     if (HXD_global != NULL)
@@ -307,4 +294,26 @@ void closegraph()
         DeleteObject(HXD_bitmap);
         CloseHandle(HXD_winthread);
     }
+}
+
+void cleardevice()
+{
+    COLORREF col = GetBkColor(HXD_memDc);
+    HBITMAP newBmp = CreateCompatibleBitmap(HXD_memDc, HXD_width, HXD_height);
+    HDC newDC = CreateCompatibleDC(HXD_memDc);
+    SelectObject(newDC, newBmp);
+    HBRUSH brush = CreateSolidBrush(col);
+    RECT rect = { 0, 0, HXD_width, HXD_height };
+    FillRect(newDC, &rect, brush);
+    DeleteObject(brush);
+    BitBlt(HXD_memDc, 0, 0, HXD_width, HXD_height, newDC, 0, 0, SRCCOPY);
+    SelectObject(HXD_memDc, HXD_bitmap);
+    DeleteDC(newDC);
+    DeleteObject(newBmp);
+    PostMessage(HXD_global, WM_PAINT, 0, 0);
+}
+
+void setbkcolor(COLORREF col)
+{
+    SetBkColor(HXD_memDc, col);
 }
