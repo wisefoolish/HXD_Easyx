@@ -1,5 +1,6 @@
 #include"Graph.h"
 #include<process.h>
+#define HXD_LARGESTDEQUE 10
 
 HWND HXD_global = NULL;
 HWND HXD_original = NULL;
@@ -9,6 +10,28 @@ HDC HXD_memDc;
 HBITMAP HXD_bitmap;
 int HXD_width = 0;
 int HXD_height = 0;
+MSG HXD_message[HXD_LARGESTDEQUE];
+int HXD_message_len = 0;
+
+void PutInMessageDeque(MSG msg)
+{
+    if (HXD_message_len < HXD_LARGESTDEQUE)HXD_message[HXD_message_len++] = msg;
+    else
+    {
+        for (int i = 0; i < HXD_LARGESTDEQUE - 1; i++)HXD_message[i] = HXD_message[i + 1];
+        HXD_message_len = HXD_LARGESTDEQUE - 1;
+        HXD_message[HXD_message_len] = msg;
+    }
+}
+
+BOOL GetHeadDeque(MSG* msg)
+{
+    if (HXD_message_len <= 0)return FALSE;
+    if (msg != NULL)*msg = HXD_message[0];
+    for (int i = 0; i < HXD_message_len - 1; i++)HXD_message[i] = HXD_message[i + 1];
+    HXD_message_len--;
+    return TRUE;
+}
 
 typedef struct CADParam
 {
@@ -93,14 +116,12 @@ unsigned __stdcall CreateAndDeal(void* lparam)
         NULL,               // 当前程序实例
         NULL);              // 这个传NULL就行
     ShowWindow(*(param.hwnd), SW_SHOW);
-    MSG msg;
     ReleaseSemaphore(param.handle, 1, NULL);
+    MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
-        EnterCriticalSection(&HXD_gcs);// 等待
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        LeaveCriticalSection(&HXD_gcs);// 释放
     }
     SendMessage(HXD_original, WM_CLOSE, 0, 0);
     return msg.wParam;
@@ -145,7 +166,6 @@ void putpixel(int x, int y, COLORREF col)
     EnterCriticalSection(&HXD_gcs);// 等待
     SetPixel(HXD_memDc, x, y, col);
     PostMessage(HXD_global, WM_PAINT, 0, 0);
-    //InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -240,11 +260,19 @@ void solidcircle(int x, int y, int radius)
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
-ExMessage getmessage()
+ExMessage getmessage(UINT utype)
 {
     MSG msg;
     ExMessage result = { 0 };
-    GetMessage(&msg, NULL, 0, 0);
+    while (1)
+    {
+        BOOL isGetMsg = FALSE;
+        EnterCriticalSection(&HXD_gcs);
+        isGetMsg = GetHeadDeque(&msg);
+        LeaveCriticalSection(&HXD_gcs);
+        if (isGetMsg == TRUE && (msg.message & utype) & 0x0f)break;
+        Sleep(1);
+    }
     result.message = msg.message;
     result.vkcode = msg.wParam;
     result.x = LOWORD(msg.lParam);
@@ -256,10 +284,18 @@ ExMessage getmessage()
     return result;
 }
 
-BOOL peekmessage(ExMessage* message)
+BOOL peekmessage(ExMessage* message, UINT utype)
 {
     MSG msg;
-    BOOL result = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
+    BOOL result = FALSE;
+    while (1)
+    {
+        EnterCriticalSection(&HXD_gcs);
+        result = GetHeadDeque(&msg);
+        LeaveCriticalSection(&HXD_gcs);
+        if (result == TRUE)break;
+        Sleep(1);
+    }
     if (message != NULL && result != FALSE)
     {
         message->message = msg.message;
