@@ -120,6 +120,9 @@ unsigned __stdcall CreateAndDeal(void* lparam)
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
+        EnterCriticalSection(&HXD_gcs);
+        PutInMessageDeque(msg);
+        LeaveCriticalSection(&HXD_gcs);
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -165,7 +168,7 @@ void putpixel(int x, int y, COLORREF col)
 {
     EnterCriticalSection(&HXD_gcs);// 等待
     SetPixel(HXD_memDc, x, y, col);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -190,7 +193,7 @@ void line(int x1, int y1, int x2, int y2)
     EnterCriticalSection(&HXD_gcs);// 等待
     MoveToEx(HXD_memDc, x1, y1, NULL);  //画一条直线
     LineTo(HXD_memDc, x2, y2);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -200,7 +203,7 @@ void rectangle(int x1, int y1, int x2, int y2)
     HGDIOBJ old = SelectObject(HXD_memDc, GetStockObject(NULL_BRUSH));
     Rectangle(HXD_memDc, x1, y1, x2, y2);
     DeleteObject(SelectObject(HXD_memDc, old));
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -208,7 +211,7 @@ void fillrectangle(int x1, int y1, int x2, int y2)
 {
     EnterCriticalSection(&HXD_gcs);// 等待
     Rectangle(HXD_memDc, x1, y1, x2, y2);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -218,7 +221,7 @@ void solidrectangle(int x1, int y1, int x2, int y2)
     HGDIOBJ old = SelectObject(HXD_memDc, CreatePen(PS_NULL, 0, 0));
     Rectangle(HXD_memDc, x1, y1, x2, y2);
     DeleteObject(SelectObject(HXD_memDc, old));
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -228,7 +231,7 @@ void floodfill(int x, int y, COLORREF col, UINT type)
     // FLOODFILLBORDER  遇 col 就停止
     // FLOODFILLSURFACE 遇 col 就继续
     ExtFloodFill(HXD_memDc, x, y, col, type);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -238,7 +241,7 @@ void circle(int x, int y, int radius)
     HGDIOBJ old = SelectObject(HXD_memDc, GetStockObject(NULL_BRUSH));
     Ellipse(HXD_memDc, x - radius, y - radius, x + radius, y + radius);
     DeleteObject(SelectObject(HXD_memDc, old));
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -246,7 +249,7 @@ void fillcircle(int x, int y, int radius)
 {
     EnterCriticalSection(&HXD_gcs);// 等待
     Ellipse(HXD_memDc, x - radius, y - radius, x + radius, y + radius);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
@@ -260,7 +263,7 @@ void solidcircle(int x, int y, int radius)
     LeaveCriticalSection(&HXD_gcs);// 释放
 }
 
-ExMessage getmessage(UINT utype)
+ExMessage getmessage()
 {
     MSG msg;
     ExMessage result = { 0 };
@@ -270,7 +273,7 @@ ExMessage getmessage(UINT utype)
         EnterCriticalSection(&HXD_gcs);
         isGetMsg = GetHeadDeque(&msg);
         LeaveCriticalSection(&HXD_gcs);
-        if (isGetMsg == TRUE && (msg.message & utype) & 0x0f)break;
+        if (isGetMsg == TRUE)break;
         Sleep(1);
     }
     result.message = msg.message;
@@ -284,18 +287,13 @@ ExMessage getmessage(UINT utype)
     return result;
 }
 
-BOOL peekmessage(ExMessage* message, UINT utype)
+BOOL peekmessage(ExMessage* message)
 {
     MSG msg;
     BOOL result = FALSE;
-    while (1)
-    {
-        EnterCriticalSection(&HXD_gcs);
-        result = GetHeadDeque(&msg);
-        LeaveCriticalSection(&HXD_gcs);
-        if (result == TRUE)break;
-        Sleep(1);
-    }
+    EnterCriticalSection(&HXD_gcs);
+    result = GetHeadDeque(&msg);
+    LeaveCriticalSection(&HXD_gcs);
     if (message != NULL && result != FALSE)
     {
         message->message = msg.message;
@@ -346,7 +344,7 @@ void cleardevice()
     SelectObject(HXD_memDc, HXD_bitmap);
     DeleteDC(newDC);
     DeleteObject(newBmp);
-    PostMessage(HXD_global, WM_PAINT, 0, 0);
+    InvalidateRect(HXD_global, NULL, FALSE);
 }
 
 void setbkcolor(COLORREF col)
