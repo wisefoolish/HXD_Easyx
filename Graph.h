@@ -30,5 +30,8 @@ void setbkcolor(COLORREF col);
 void closegraph();
 void cleardevice();
 void setbkcolor(COLORREF col);
+void BeginBatchDraw();
+void FlushBatchDraw();
+void EndBatchDraw();
 ExMessage getmessage();
 BOOL peekmessage(ExMessage* message);
