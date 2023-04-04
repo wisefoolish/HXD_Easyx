@@ -2,11 +2,17 @@
 
 int main()
 {
-    HWND hwnd = initgraph(640, 480, SHOWCONSOLE);
-    setlinecolor(RGB(255, 255, 255));
-    rectangle(150, 150, 250, 250);
-    setlinecolor(RGB(255,0,0));
-    circle(300, 300, 50);
+    initgraph(640, 480, SHOWCONSOLE);
+    setbkcolor(RGB(255, 255, 255));
+    cleardevice();
+    setlinecolor(RGB(0, 0, 0));
+    int x = 100, y = 100;
+    circle(100, 100, 20);
+    Sleep(1000);
+    circle(110, 110, 20);
+    Sleep(1000);
+    circle(120, 120, 20); 
     system("pause");
+    closegraph();
     return 0;
 }
